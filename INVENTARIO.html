@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sistema de Inventario</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background-color: #e6f0fa;
+      font-size: 18px;
+      line-height: 1.5;
+    }
+    h1 {
+      text-align: center;
+      color: #2c3e50;
+      font-size: 28px;
+      margin-bottom: 20px;
+    }
+    .container {
+      max-width: 100%;
+      margin: 0 auto;
+      background: #ffffff;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+    .form-group {
+      margin-bottom: 20px;
+    }
+    label {
+      display: block;
+      margin-bottom: 8px;
+      color: #34495e;
+      font-weight: 600;
+      font-size: 20px;
+    }
+    input {
+      width: 100%;
+      padding: 12px;
+      font-size: 18px;
+      border: 2px solid #bdc3c7;
+      border-radius: 8px;
+      box-sizing: border-box;
+      background-color: #f9fbfc;
+      transition: border-color 0.3s;
+    }
+    input:focus {
+      border-color: #3498db;
+      outline: none;
+    }
+    select {
+      width: 100%;
+      padding: 18px;
+      font-size: 20px;
+      border: 2px solid #bdc3c7;
+      border-radius: 8px;
+      box-sizing: border-box;
+      background-color: #f9fbfc;
+      transition: border-color 0.3s;
+      height: 60px;
+    }
+    select:focus {
+      border-color: #3498db;
+      outline: none;
+    }
+    button {
+      width: 100%;
+      padding: 14px;
+      font-size: 20px;
+      background-color: #3498db;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background-color 0.3s;
+      margin-top: 10px;
+    }
+    button:hover {
+      background-color: #2980b9;
+    }
+    button.review {
+      background-color: #2ecc71;
+      width: 48%; /* Ajuste para que quepan dos botones lado a lado */
+      margin-right: 4%;
+      display: inline-block;
+    }
+    button.no-review {
+      background-color: #e74c3c;
+      width: 48%; /* Ajuste para que quepan dos botones lado a lado */
+      display: inline-block;
+    }
+    button.review:hover, button.no-review:hover {
+      opacity: 0.9;
+    }
+    button.export {
+      background-color: #2ecc71;
+    }
+    button.export:hover {
+      background-color: #27ae60;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+      font-size: 16px;
+    }
+    th, td {
+      border: 1px solid #dfe6e9;
+      padding: 12px;
+      text-align: left;
+    }
+    th {
+      background-color: #3498db;
+      color: white;
+      font-size: 18px;
+    }
+    td {
+      background-color: #f9fbfc;
+    }
+    .actions button {
+      width: auto;
+      padding: 8px 16px;
+      font-size: 16px;
+      margin-right: 10px;
+    }
+    .actions button.delete {
+      background-color: #e74c3c;
+    }
+    .actions button.delete:hover {
+      background-color: #c0392b;
+    }
+    @media (max-width: 600px) {
+      body {
+        padding: 10px;
+        font-size: 16px;
+      }
+      h1 {
+        font-size: 24px;
+      }
+      label {
+        font-size: 18px;
+      }
+      input, select {
+        font-size: 16px;
+        padding: 10px;
+        height: 50px;
+      }
+      button {
+        font-size: 18px;
+        padding: 12px;
+      }
+      button.review, button.no-review {
+        width: 48%;
+        margin-right: 4%;
+      }
+      th, td {
+        font-size: 14px;
+        padding: 10px;
+      }
+      .actions button {
+        font-size: 14px;
+        padding: 6px 12px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Sistema de Inventario</h1>
+    <div class="form-group">
+      <label for="codigo">Código</label>
+      <input type="text" id="codigo" placeholder="Ej: ABC123">
+      <label for="nombre">Nombre del Producto</label>
+      <input type="text" id="nombre" list="nombresRecomendados" placeholder="Ej: CALZA">
+      <datalist id="nombresRecomendados">
+        <option value="CALZA">
+        <option value="BABUCHA">
+        <option value="PANTALON">
+        <option value="PALAZO">
+        <option value="TOP">
+        <option value="CAMPERA">
+        <option value="BUZO">
+        <option value="REMERA">
+        <option value="CAMISETA">
+      </datalist>
+      <label for="cantidad">Cantidad</label>
+      <input type="number" id="cantidad" min="0" placeholder="Ej: 10">
+      <button class="review" onclick="marcarRevisado()">Mandar a revisar</button>
+      <button class="no-review" onclick="marcarNoRevisado()">No Revisar</button>
+      <button onclick="agregarOEditarProducto()">Agregar o Editar Producto</button>
+      <button class="export" onclick="exportarPDF()">Exportar a PDF</button>
+    </div>
+    <table id="tablaInventario">
+      <thead>
+        <tr>
+          <th>Código</th>
+          <th>Nombre</th>
+          <th>Cantidad</th>
+          <th>Revisar</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody id="cuerpoTabla"></tbody>
+    </table>
+  </div>
+
+  <script>
+    let inventario = JSON.parse(localStorage.getItem('inventario')) || [];
+    let editIndex = -1;
+    let revisado = null; // null indica que no se ha seleccionado aún
+
+    function generarId() {
+      return '_' + Math.random().toString(36).substr(2, 9);
+    }
+
+    function marcarRevisado() {
+      revisado = true;
+    }
+
+    function marcarNoRevisado() {
+      revisado = false;
+    }
+
+    function agregarOEditarProducto() {
+      const codigo = document.getElementById('codigo').value.trim();
+      const nombre = document.getElementById('nombre').value.trim();
+      const cantidad = document.getElementById('cantidad').value;
+      const revisar = revisado === true ? "Revisar" : revisado === false ? "-" : "-";
+
+      let errores = [];
+      if (!codigo) {
+        errores.push("El código es obligatorio.");
+      }
+      if (!nombre) {
+        errores.push("El nombre del producto es obligatorio.");
+      }
+      if (!cantidad || isNaN(cantidad) || parseInt(cantidad) < 0) {
+        errores.push("La cantidad debe ser un número mayor o igual a 0.");
+      }
+
+      if (errores.length > 0) {
+        alert("Errores encontrados:\n- " + errores.join("\n- "));
+        return;
+      }
+
+      const producto = { id: editIndex === -1 ? generarId() : inventario[editIndex].id, codigo, nombre, cantidad: parseInt(cantidad), revisar };
+
+      if (editIndex === -1) {
+        inventario.push(producto);
+      } else {
+        inventario[editIndex] = producto;
+        editIndex = -1;
+      }
+
+      localStorage.setItem('inventario', JSON.stringify(inventario));
+      actualizarTabla();
+      limpiarFormulario();
+      revisado = null; // Resetear el estado después de guardar
+    }
+
+    function editarProducto(id) {
+      editIndex = inventario.findIndex(p => p.id === id);
+      const producto = inventario[editIndex];
+      document.getElementById('codigo').value = producto.codigo;
+      document.getElementById('nombre').value = producto.nombre;
+      document.getElementById('cantidad').value = producto.cantidad;
+      revisado = producto.revisar === "Revisar" ? true : producto.revisar === "-" ? false : null;
+    }
+
+    function eliminarProducto(id) {
+      if (confirm('¿Estás seguro de eliminar este producto?')) {
+        inventario = inventario.filter(p => p.id !== id);
+        localStorage.setItem('inventario', JSON.stringify(inventario));
+        actualizarTabla();
+      }
+    }
+
+    function actualizarTabla() {
+      const cuerpoTabla = document.getElementById('cuerpoTabla');
+      cuerpoTabla.innerHTML = '';
+      inventario.forEach(producto => {
+        const fila = document.createElement('tr');
+        fila.innerHTML = `
+          <td>${producto.codigo}</td>
+          <td>${producto.nombre}</td>
+          <td>${producto.cantidad}</td>
+          <td>${producto.revisar}</td>
+          <td class="actions">
+            <button onclick="editarProducto('${producto.id}')">Editar</button>
+            <button class="delete" onclick="eliminarProducto('${producto.id}')">Eliminar</button>
+          </td>
+        `;
+        cuerpoTabla.appendChild(fila);
+      });
+    }
+
+    function limpiarFormulario() {
+      document.getElementById('codigo').value = '';
+      document.getElementById('nombre').value = '';
+      document.getElementById('cantidad').value = '';
+      revisado = null;
+    }
+
+    function exportarPDF() {
+      if (inventario.length === 0) {
+        alert('El inventario está vacío. Agrega productos antes de exportar.');
+        return;
+      }
+
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF({
+        orientation: 'landscape'
+      });
+
+      doc.setFontSize(18);
+      doc.text('Inventario', 10, 20);
+
+      const tableData = inventario.map(producto => [
+        producto.codigo,
+        producto.nombre,
+        producto.cantidad,
+        producto.revisar
+      ]);
+
+      doc.autoTable({
+        head: [['Código', 'Nombre', 'Cantidad', 'Revisar']],
+        body: tableData,
+        startY: 30,
+        theme: 'striped',
+        styles: { fontSize: 12, cellPadding: 5 },
+        headStyles: { fillColor: [52, 152, 219], textColor: [255, 255, 255], fontSize: 14 }
+      });
+
+      doc.save('inventario.pdf');
+    }
+
+    // Cargar la tabla al iniciar
+    actualizarTabla();
+  </script>
+</body>
+</html>
