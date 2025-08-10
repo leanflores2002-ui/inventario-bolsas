@@ -6,6 +6,7 @@
   <title>Sistema de Inventario</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+  <script src="https://mozilla.github.io/pdf.js/build/pdf.js"></script>
   <style>
     body {
       font-family: 'Segoe UI', Arial, sans-serif;
@@ -85,13 +86,13 @@
     }
     button.review {
       background-color: #2ecc71;
-      width: 48%; /* Ajuste para que quepan dos botones lado a lado */
+      width: 48%;
       margin-right: 4%;
       display: inline-block;
     }
     button.no-review {
       background-color: #e74c3c;
-      width: 48%; /* Ajuste para que quepan dos botones lado a lado */
+      width: 48%;
       display: inline-block;
     }
     button.review:hover, button.no-review:hover {
@@ -102,6 +103,15 @@
     }
     button.export:hover {
       background-color: #27ae60;
+    }
+    button.import {
+      background-color: #f39c12;
+    }
+    button.import:hover {
+      background-color: #e67e22;
+    }
+    #pdf-upload {
+      margin-top: 10px;
     }
     table {
       width: 100%;
@@ -190,9 +200,11 @@
       </datalist>
       <label for="cantidad">Cantidad</label>
       <input type="number" id="cantidad" min="0" placeholder="Ej: 10">
-      <button class="review" onclick="marcarRevisado()">Mandar a revisar</button>
+      <button class="review" onclick="marcarRevisado()">Marcar como Revisado</button>
       <button class="no-review" onclick="marcarNoRevisado()">No Revisar</button>
       <button onclick="agregarOEditarProducto()">Agregar o Editar Producto</button>
+      <button class="import" onclick="document.getElementById('pdf-upload').click()">Importar PDF</button>
+      <input type="file" id="pdf-upload" accept=".pdf" style="display: none;" onchange="importarPDF(this.files[0])">
       <button class="export" onclick="exportarPDF()">Exportar a PDF</button>
     </div>
     <table id="tablaInventario">
@@ -304,6 +316,42 @@
       document.getElementById('nombre').value = '';
       document.getElementById('cantidad').value = '';
       revisado = null;
+    }
+
+    async function importarPDF(file) {
+      if (!file) return;
+
+      const loadingTask = pdfjsLib.getDocument(URL.createObjectURL(file));
+      const pdf = await loadingTask.promise;
+
+      let textContent = '';
+      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+        const page = await pdf.getPage(pageNum);
+        const content = await page.getTextContent();
+        content.items.forEach(item => {
+          textContent += item.str + ' ';
+        });
+        textContent += '\n';
+      }
+
+      // Parsear el texto del PDF asumiendo un formato simple como líneas: Código | Nombre | Cantidad | Revisar
+      const lines = textContent.split('\n').filter(line => line.trim() !== '');
+      lines.forEach(line => {
+        const parts = line.split('|').map(part => part.trim());
+        if (parts.length >= 4) {
+          const codigo = parts[0];
+          const nombre = parts[1];
+          const cantidad = parseInt(parts[2]);
+          const revisar = parts[3].toLowerCase() === 'revisar' ? 'Revisar' : '-';
+          if (!isNaN(cantidad)) {
+            inventario.push({ id: generarId(), codigo, nombre, cantidad, revisar });
+          }
+        }
+      });
+
+      localStorage.setItem('inventario', JSON.stringify(inventario));
+      actualizarTabla();
+      alert('Datos importados del PDF. Revisa la tabla para editar si es necesario.');
     }
 
     function exportarPDF() {
