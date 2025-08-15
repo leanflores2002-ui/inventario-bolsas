@@ -6,7 +6,6 @@
   <title>Sistema de Inventario</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
-  <script src="https://mozilla.github.io/pdf.js/build/pdf.js"></script>
   <style>
     body {
       font-family: 'Segoe UI', Arial, sans-serif;
@@ -110,7 +109,7 @@
     button.import:hover {
       background-color: #e67e22;
     }
-    #pdf-upload {
+    #csv-upload {
       margin-top: 10px;
     }
     table {
@@ -203,9 +202,26 @@
       <button class="review" onclick="marcarRevisado()">Marcar como Revisado</button>
       <button class="no-review" onclick="marcarNoRevisado()">No Revisar</button>
       <button onclick="agregarOEditarProducto()">Agregar o Editar Producto</button>
-      <button class="import" onclick="document.getElementById('pdf-upload').click()">Importar PDF</button>
-      <input type="file" id="pdf-upload" accept=".pdf" style="display: none;" onchange="importarPDF(this.files[0])">
-      <button class="export" onclick="exportarPDF()">Exportar a PDF</button>
+      <button class="import" onclick="document.getElementById('csv-upload').click()">Importar CSV</button>
+      <input type="file" id="csv-upload" accept=".csv" style="display: none;" onchange="importarCSV(this.files[0])">
+      <button class="export" onclick="exportarPDFyCSV()">Exportar a PDF y CSV</button>
+    </div>
+    <div class="form-group">
+      <label for="filtroArticulo">Filtrar por Artículo</label>
+      <select id="filtroArticulo" onchange="filtrarTabla()">
+        <option value="">Todos</option>
+        <option value="CAPRI">CAPRI</option>
+        <option value="CALZA">CALZA</option>
+        <option value="SHORT">SHORT</option>
+        <option value="BUZO">BUZO</option>
+        <option value="REMERA">REMERA</option>
+        <option value="TOP">TOP</option>
+        <option value="CICLISTA">CICLISTA</option>
+        <option value="PANTALON">PANTALON</option>
+        <option value="BABUCHA">BABUCHA</option>
+        <option value="MUSCULOSA">MUSCULOSA</option>
+        <option value="BERMUDA">BERMUDA</option>
+      </select>
     </div>
     <table id="tablaInventario">
       <thead>
@@ -224,7 +240,7 @@
   <script>
     let inventario = JSON.parse(localStorage.getItem('inventario')) || [];
     let editIndex = -1;
-    let revisado = null; // null indica que no se ha seleccionado aún
+    let revisado = null;
 
     function generarId() {
       return '_' + Math.random().toString(36).substr(2, 9);
@@ -272,7 +288,7 @@
       localStorage.setItem('inventario', JSON.stringify(inventario));
       actualizarTabla();
       limpiarFormulario();
-      revisado = null; // Resetear el estado después de guardar
+      revisado = null;
     }
 
     function editarProducto(id) {
@@ -309,6 +325,7 @@
         `;
         cuerpoTabla.appendChild(fila);
       });
+      filtrarTabla();
     }
 
     function limpiarFormulario() {
@@ -318,48 +335,84 @@
       revisado = null;
     }
 
-    async function importarPDF(file) {
-      if (!file) return;
+    function filtrarTabla() {
+      const filtro = document.getElementById('filtroArticulo').value.toLowerCase();
+      const rows = document.querySelectorAll('#cuerpoTabla tr');
+      rows.forEach(row => {
+        const nombreCell = row.querySelector('td:nth-child(2)');
+        if (nombreCell) {
+          const nombre = nombreCell.textContent.toLowerCase();
+          if (!filtro || nombre.includes(filtro)) {
+            row.style.display = '';
+          } else {
+            row.style.display = 'none';
+          }
+        }
+      });
+    }
 
-      const loadingTask = pdfjsLib.getDocument(URL.createObjectURL(file));
-      const pdf = await loadingTask.promise;
-
-      let textContent = '';
-      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-        const page = await pdf.getPage(pageNum);
-        const content = await page.getTextContent();
-        content.items.forEach(item => {
-          textContent += item.str + ' ';
-        });
-        textContent += '\n';
+    function importarCSV(file) {
+      if (!file) {
+        alert('No se seleccionó ningún archivo.');
+        return;
       }
 
-      // Parsear el texto del PDF asumiendo un formato simple como líneas: Código | Nombre | Cantidad | Revisar
-      const lines = textContent.split('\n').filter(line => line.trim() !== '');
-      lines.forEach(line => {
-        const parts = line.split('|').map(part => part.trim());
-        if (parts.length >= 4) {
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const text = e.target.result;
+        console.log('Contenido del CSV:', text); // Depuración
+        const lines = text.split('\n').filter(line => line.trim() !== '');
+        let importedCount = 0;
+
+        lines.forEach((line, index) => {
+          if (index === 0) return; // Saltar la primera línea (encabezados)
+          const separators = [',', '|']; // Probar con coma o barra vertical
+          let parts = null;
+          for (let sep of separators) {
+            parts = line.split(sep).map(part => part.trim());
+            if (parts.length >= 4) break; // Usar el separador que dé al menos 4 columnas
+          }
+          if (!parts || parts.length < 4) {
+            console.log('Línea no válida:', line); // Depuración
+            return;
+          }
+
           const codigo = parts[0];
           const nombre = parts[1];
           const cantidad = parseInt(parts[2]);
           const revisar = parts[3].toLowerCase() === 'revisar' ? 'Revisar' : '-';
-          if (!isNaN(cantidad)) {
-            inventario.push({ id: generarId(), codigo, nombre, cantidad, revisar });
-          }
-        }
-      });
 
-      localStorage.setItem('inventario', JSON.stringify(inventario));
-      actualizarTabla();
-      alert('Datos importados del PDF. Revisa la tabla para editar si es necesario.');
+          if (!isNaN(cantidad) && codigo && nombre) {
+            inventario.push({ id: generarId(), codigo, nombre, cantidad, revisar });
+            importedCount++;
+          } else {
+            console.log('Datos no válidos en línea:', line); // Depuración
+          }
+        });
+
+        if (importedCount === 0) {
+          alert('No se encontraron datos válidos en el CSV. Asegúrate de que el formato sea: Código|Nombre|Cantidad|Revisar (o Código,Nombre,Cantidad,Revisar). Revisa la consola para más detalles.');
+          return;
+        }
+
+        localStorage.setItem('inventario', JSON.stringify(inventario));
+        actualizarTabla();
+        alert(`Se importaron ${importedCount} productos del CSV. Revisa la tabla para editar si es necesario.`);
+      };
+      reader.onerror = function() {
+        console.error('Error al leer el archivo:', reader.error);
+        alert('Error al leer el archivo CSV. Revisa la consola para más detalles.');
+      };
+      reader.readAsText(file);
     }
 
-    function exportarPDF() {
+    function exportarPDFyCSV() {
       if (inventario.length === 0) {
         alert('El inventario está vacío. Agrega productos antes de exportar.');
         return;
       }
 
+      // Exportar a PDF
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF({
         orientation: 'landscape'
@@ -385,6 +438,24 @@
       });
 
       doc.save('inventario.pdf');
+
+      // Exportar a CSV
+      let csvContent = 'Código|Nombre|Cantidad|Revisar\n';
+      inventario.forEach(producto => {
+        csvContent += `${producto.codigo}|${producto.nombre}|${producto.cantidad}|${producto.revisar}\n`;
+      });
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      if (link.download !== undefined) {
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', 'inventario.csv');
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
     }
 
     // Cargar la tabla al iniciar
