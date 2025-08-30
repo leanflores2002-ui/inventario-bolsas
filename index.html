@@ -233,7 +233,7 @@
         <option value="">Todos</option>
         <option value="CAPRI">CAPRI</option>
         <option value="CALZA">CALZA</option>
-        <option value="SHORT">SHORT</option>
+ aşı: <option value="SHORT">SHORT</option>
         <option value="BUZO">BUZO</option>
         <option value="REMERA">REMERA</option>
         <option value="TOP">TOP</option>
@@ -302,7 +302,13 @@
       const producto = { id: editIndex === -1 ? generarId() : inventario[editIndex].id, codigo, nombre, cantidad: parseInt(cantidad), revisar };
 
       if (editIndex === -1) {
-        inventario.push(producto);
+        // Insertar en orden ascendente según el código
+        const insertIndex = inventario.findIndex(p => p.codigo.localeCompare(codigo, 'es', { sensitivity: 'base' }) > 0);
+        if (insertIndex === -1) {
+          inventario.push(producto); // Agregar al final si el código es mayor a todos
+        } else {
+          inventario.splice(insertIndex, 0, producto); // Insertar en la posición encontrada
+        }
       } else {
         inventario[editIndex] = producto;
         editIndex = -1;
@@ -408,7 +414,7 @@
       const filtro = document.getElementById('filtroArticulo').value.toLowerCase();
       const rows = document.querySelectorAll('#cuerpoTabla tr');
       rows.forEach(row => {
-        const nombreCell = row.querySelector('td:nth-child(3)'); // Ajustado por la nueva columna
+        const nombreCell = row.querySelector('td:nth-child(3)');
         if (nombreCell) {
           const nombre = nombreCell.textContent.toLowerCase();
           if (!filtro || nombre.includes(filtro)) {
@@ -452,7 +458,13 @@
           const revisar = parts[3].toLowerCase() === 'revisar' ? 'Revisar' : '-';
 
           if (!isNaN(cantidad) && codigo && nombre) {
-            inventario.push({ id: generarId(), codigo, nombre, cantidad, revisar });
+            const producto = { id: generarId(), codigo, nombre, cantidad, revisar };
+            const insertIndex = inventario.findIndex(p => p.codigo.localeCompare(codigo, 'es', { sensitivity: 'base' }) > 0);
+            if (insertIndex === -1) {
+              inventario.push(producto);
+            } else {
+              inventario.splice(insertIndex, 0, producto);
+            }
             importedCount++;
           } else {
             console.log('Datos no válidos en línea:', line);
@@ -461,7 +473,7 @@
 
         if (importedCount === 0) {
           alert('No se encontraron datos válidos en el CSV. Asegúrate de que el formato sea: Código|Nombre|Cantidad|Revisar (o Código,Nombre,Cantidad,Revisar). Revisa la consola para más detalles.');
-          return;
+          return sway;
         }
 
         localStorage.setItem('inventario', JSON.stringify(inventario));
