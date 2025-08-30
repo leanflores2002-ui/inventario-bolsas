@@ -131,6 +131,23 @@
     td {
       background-color: #f9fbfc;
     }
+    tr {
+      cursor: move;
+    }
+    tr.dragging {
+      opacity: 0.5;
+      background-color: #e0e0e0;
+    }
+    .drag-icon {
+      font-size: 20px;
+      color: #34495e;
+      cursor: move;
+      text-align: center;
+      width: 40px;
+    }
+    .drag-icon:hover {
+      color: #3498db;
+    }
     .actions button {
       width: auto;
       padding: 8px 16px;
@@ -174,6 +191,10 @@
       .actions button {
         font-size: 14px;
         padding: 6px 12px;
+      }
+      .drag-icon {
+        font-size: 16px;
+        width: 30px;
       }
     }
   </style>
@@ -226,6 +247,7 @@
     <table id="tablaInventario">
       <thead>
         <tr>
+          <th style="width: 40px;">Mover</th>
           <th>Código</th>
           <th>Nombre</th>
           <th>Cantidad</th>
@@ -241,6 +263,7 @@
     let inventario = JSON.parse(localStorage.getItem('inventario')) || [];
     let editIndex = -1;
     let revisado = null;
+    let draggedRow = null;
 
     function generarId() {
       return '_' + Math.random().toString(36).substr(2, 9);
@@ -298,6 +321,7 @@
       document.getElementById('nombre').value = producto.nombre;
       document.getElementById('cantidad').value = producto.cantidad;
       revisado = producto.revisar === "Revisar" ? true : producto.revisar === "-" ? false : null;
+      document.getElementById('codigo').focus();
     }
 
     function eliminarProducto(id) {
@@ -311,9 +335,12 @@
     function actualizarTabla() {
       const cuerpoTabla = document.getElementById('cuerpoTabla');
       cuerpoTabla.innerHTML = '';
-      inventario.forEach(producto => {
+      inventario.forEach((producto, index) => {
         const fila = document.createElement('tr');
+        fila.setAttribute('draggable', 'true');
+        fila.setAttribute('data-id', producto.id);
         fila.innerHTML = `
+          <td class="drag-icon">☰</td>
           <td>${producto.codigo}</td>
           <td>${producto.nombre}</td>
           <td>${producto.cantidad}</td>
@@ -323,9 +350,51 @@
             <button class="delete" onclick="eliminarProducto('${producto.id}')">Eliminar</button>
           </td>
         `;
+        // Agregar eventos de arrastrar y soltar
+        fila.addEventListener('dragstart', handleDragStart);
+        fila.addEventListener('dragover', handleDragOver);
+        fila.addEventListener('drop', handleDrop);
+        fila.addEventListener('dragend', handleDragEnd);
+        // Agregar evento de doble clic para editar, excluyendo ciertas columnas
+        fila.addEventListener('dblclick', (e) => {
+          if (!e.target.closest('.drag-icon') && !e.target.closest('.actions')) {
+            editarProducto(producto.id);
+          }
+        });
         cuerpoTabla.appendChild(fila);
       });
       filtrarTabla();
+    }
+
+    function handleDragStart(e) {
+      draggedRow = e.target;
+      e.target.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', e.target.getAttribute('data-id'));
+    }
+
+    function handleDragOver(e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+    }
+
+    function handleDrop(e) {
+      e.preventDefault();
+      const droppedId = e.dataTransfer.getData('text/plain');
+      const targetId = e.target.closest('tr').getAttribute('data-id');
+      if (droppedId !== targetId) {
+        const draggedIndex = inventario.findIndex(p => p.id === droppedId);
+        const targetIndex = inventario.findIndex(p => p.id === targetId);
+        const [draggedProducto] = inventario.splice(draggedIndex, 1);
+        inventario.splice(targetIndex, 0, draggedProducto);
+        localStorage.setItem('inventario', JSON.stringify(inventario));
+        actualizarTabla();
+      }
+    }
+
+    function handleDragEnd(e) {
+      e.target.classList.remove('dragging');
+      draggedRow = null;
     }
 
     function limpiarFormulario() {
@@ -339,7 +408,7 @@
       const filtro = document.getElementById('filtroArticulo').value.toLowerCase();
       const rows = document.querySelectorAll('#cuerpoTabla tr');
       rows.forEach(row => {
-        const nombreCell = row.querySelector('td:nth-child(2)');
+        const nombreCell = row.querySelector('td:nth-child(3)'); // Ajustado por la nueva columna
         if (nombreCell) {
           const nombre = nombreCell.textContent.toLowerCase();
           if (!filtro || nombre.includes(filtro)) {
@@ -360,20 +429,20 @@
       const reader = new FileReader();
       reader.onload = function(e) {
         const text = e.target.result;
-        console.log('Contenido del CSV:', text); // Depuración
+        console.log('Contenido del CSV:', text);
         const lines = text.split('\n').filter(line => line.trim() !== '');
         let importedCount = 0;
 
         lines.forEach((line, index) => {
-          if (index === 0) return; // Saltar la primera línea (encabezados)
-          const separators = [',', '|']; // Probar con coma o barra vertical
+          if (index === 0) return;
+          const separators = [',', '|'];
           let parts = null;
           for (let sep of separators) {
             parts = line.split(sep).map(part => part.trim());
-            if (parts.length >= 4) break; // Usar el separador que dé al menos 4 columnas
+            if (parts.length >= 4) break;
           }
           if (!parts || parts.length < 4) {
-            console.log('Línea no válida:', line); // Depuración
+            console.log('Línea no válida:', line);
             return;
           }
 
@@ -386,7 +455,7 @@
             inventario.push({ id: generarId(), codigo, nombre, cantidad, revisar });
             importedCount++;
           } else {
-            console.log('Datos no válidos en línea:', line); // Depuración
+            console.log('Datos no válidos en línea:', line);
           }
         });
 
@@ -412,7 +481,6 @@
         return;
       }
 
-      // Exportar a PDF
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF({
         orientation: 'landscape'
@@ -439,7 +507,6 @@
 
       doc.save('inventario.pdf');
 
-      // Exportar a CSV
       let csvContent = 'Código|Nombre|Cantidad|Revisar\n';
       inventario.forEach(producto => {
         csvContent += `${producto.codigo}|${producto.nombre}|${producto.cantidad}|${producto.revisar}\n`;
@@ -458,7 +525,6 @@
       }
     }
 
-    // Cargar la tabla al iniciar
     actualizarTabla();
   </script>
 </body>
